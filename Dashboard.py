@@ -9,11 +9,19 @@ from datetime import datetime
 
 # define functions
 def style_negative(v, props=''):
-    """Style negative values in dataframe"""
-    pass
+    """ Style negative values in dataframe"""
+    try: 
+        return props if v < 0 else None
+    except:
+        pass
 
 def style_positive(v, props=''):
-    pass
+    """Style positive values in dataframe"""
+    try: 
+        return props if v > 0 else None
+    except:
+        pass    
+
 
 def audience_simple(country):
     """Show top represented countries"""
@@ -98,27 +106,63 @@ if add_sidebar == 'Aggregate Metrics':
     st.write("Ken Lee YouTube Aggregated Data")
     
     ##Getting metrics to show on our Dashboard
-    df_agg_metrics = df_agg[['Video_publish_time','Views','Likes','Subscribers','Shares','Comments_added','RPM(USD)','Average_%_viewed',
-                             'Avg_duration_sec', 'Engagement_ratio','Views/sub_gained']]
-    
-    #calculate medians for last 6 and 12 months
-    metric_date_6mo = df_agg_metrics['Video_publish_time'].max() - pd.DateOffset(months=6)
-    metric_date_12mo = df_agg_metrics['Video_publish_time'].max() - pd.DateOffset(months=12)
-    metric_medians6mo = df_agg_metrics[df_agg_metrics['Video_publish_time'] >= metric_date_6mo].median()
-    metric_medians12mo = df_agg_metrics[df_agg_metrics['Video_publish_time'] >= metric_date_12mo].median()
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    columns = [col1, col2, col3, col4, col5]
+    if add_sidebar == 'Aggregate Metrics':
+    # Ensure datetime and fix column typo
+        df_agg['Video_publish_time'] = pd.to_datetime(df_agg['Video publish time'], errors='coerce')
 
-    count = 0
-    for i in metric_medians6mo.index:
-        with columns[count]:
-            delta = (metric_medians6mo[i] - metric_medians12mo[i])/metric_medians12mo[i] #delta - the difference between two values in
-            # this case delta is the percentage change between the 6month median and 12 month median
-            st.metric(label=i, value= f"{metric_medians6mo[i]:.2f}", delta= f"{delta:.2%}")
+        # Select only existing columns and numeric metrics
+        metric_cols = [
+            'Views', 'Likes', 'Subscribers', 'Shares', 'Comments added', 'RPM(USD)',
+            'Average % Views', 'Avg_duration_sec', 'Engagement_ratio', 'Views /sub gained'
+        ]
+        df_agg_metrics = df_agg[['Video publish time'] + metric_cols].copy()
+
+        # Date ranges
+        latest_date = df_agg_metrics['Video publish time'].max()
+        metric_date_6mo = latest_date - pd.DateOffset(months=6)
+        metric_date_12mo = latest_date - pd.DateOffset(months=12)
+
+        # Filter windows
+        df_6mo = df_agg_metrics[df_agg_metrics['Video publish time'] >= metric_date_6mo]
+        df_12mo = df_agg_metrics[df_agg_metrics['Video publish time'] >= metric_date_12mo]
+
+        # Compute medians for numeric columns only
+        metric_medians6mo = df_6mo[metric_cols].median(numeric_only=True)
+        metric_medians12mo = df_12mo[metric_cols].median(numeric_only=True)
+
+        # Align indices (should already match metric_cols)
+        metric_medians6mo = metric_medians6mo.reindex(metric_cols)
+        metric_medians12mo = metric_medians12mo.reindex(metric_cols)
+
+        # Streamlit layout
+        col1, col2, col3, col4, col5 = st.columns(5)
+        columns = [col1, col2, col3, col4, col5]
+
+        count = 0
+        for i in metric_cols:
+            with columns[count]:
+                val_6 = metric_medians6mo[i]
+                val_12 = metric_medians12mo[i]
+
+                # Safe delta calculation: handle NaN and zero
+                if pd.isna(val_6) or pd.isna(val_12) or val_12 == 0:
+                    delta_str = "—"
+                else:
+                    delta = (val_6 - val_12) / val_12
+                    delta_str = "{:.2%}".format(delta)
+
+                st.metric(label=i, value=None if pd.isna(val_6) else round(val_6, 1), delta=delta_str)
+
             count += 1
             if count >= 5:
                 count = 0
+                
+        df_agg_diff['Publish_date'] = df_agg_diff['Video_publish_time'].apply(lambda x: x.date)
+        df_agg_diff_final = df_agg_diff.loc[:, ['Video_title', 'Publish_date','Comments_added','Shares','Dislikes','Likes',
+                                            'Subscribers_lost','Subscribers_gained']]
+
+        st.dataframe(df_agg_diff_final.style.applymap(style_negative, props='color:red;').applymap(style_positive, props='color:green;'))                               
+                        
 
 if add_sidebar == 'Individual Video Analysis':
     st.write("Ken Lee YouTube Aggregated Data")
