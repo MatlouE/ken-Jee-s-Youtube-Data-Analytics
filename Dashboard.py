@@ -71,9 +71,10 @@ numeric_cols = filtered_df.select_dtypes(include=[np.number])
 
 # Compute median across rows (axis=0 → column-wise median)
 median_agg = np.median(numeric_cols, axis=0)
-#create differences from the median for values
-#just numeric columns
+
+df_agg_diff.iloc[:numeric_cols] = (df_agg_diff.iloc[:numeric_cols] - median_agg).div(median_agg)
 #merge daily data with publish data to get delta
+
 #merging df_time dataset with df_agg but just the two related columns as foreign keys
 df_time_diff = pd.merge(df_time, df_agg,left_on = 'External Video ID', right_on='Video', how='left')
 df_time_diff['days_published'] = (df_time_diff['Date'] - df_time_diff['Video_publish_time']).dt.days
@@ -108,23 +109,23 @@ if add_sidebar == 'Aggregate Metrics':
     ##Getting metrics to show on our Dashboard
     if add_sidebar == 'Aggregate Metrics':
     # Ensure datetime and fix column typo
-        df_agg['Video_publish_time'] = pd.to_datetime(df_agg['Video publish time'], errors='coerce')
+        df_agg['Video_publish_time'] = pd.to_datetime(df_agg['Video_publish_time'], dayfirst=False , errors='coerce')
 
         # Select only existing columns and numeric metrics
         metric_cols = [
-            'Views', 'Likes', 'Subscribers', 'Shares', 'Comments added', 'RPM(USD)',
-            'Average % Views', 'Avg_duration_sec', 'Engagement_ratio', 'Views /sub gained'
+            'Views', 'Likes', 'Subscribers', 'Shares', 'Comments_added', 'RPM(USD)',
+            'Average_%_viewed', 'Avg_duration_sec', 'Engagement_ratio', 'Views/sub_gained'
         ]
-        df_agg_metrics = df_agg[['Video publish time'] + metric_cols].copy()
+        df_agg_metrics = df_agg[['Video_publish_time'] + metric_cols].copy()
 
         # Date ranges
-        latest_date = df_agg_metrics['Video publish time'].max()
+        latest_date = df_agg_metrics['Video_publish_time'].max()
         metric_date_6mo = latest_date - pd.DateOffset(months=6)
         metric_date_12mo = latest_date - pd.DateOffset(months=12)
 
         # Filter windows
-        df_6mo = df_agg_metrics[df_agg_metrics['Video publish time'] >= metric_date_6mo]
-        df_12mo = df_agg_metrics[df_agg_metrics['Video publish time'] >= metric_date_12mo]
+        df_6mo = df_agg_metrics[df_agg_metrics['Video_publish_time'] >= metric_date_6mo]
+        df_12mo = df_agg_metrics[df_agg_metrics['Video_publish_time'] >= metric_date_12mo]
 
         # Compute medians for numeric columns only
         metric_medians6mo = df_6mo[metric_cols].median(numeric_only=True)
@@ -161,8 +162,15 @@ if add_sidebar == 'Aggregate Metrics':
         df_agg_diff_final = df_agg_diff.loc[:, ['Video_title', 'Publish_date','Comments_added','Shares','Dislikes','Likes',
                                             'Subscribers_lost','Subscribers_gained']]
 
-        st.dataframe(df_agg_diff_final.style.applymap(style_negative, props='color:red;').applymap(style_positive, props='color:green;'))                               
+        st.dataframe(df_agg_diff_final)                          
                         
 
 if add_sidebar == 'Individual Video Analysis':
-    st.write("Ken Lee YouTube Aggregated Data")
+    st.write("Invidiual Video Analysis")
+
+    videos = tuple(df_agg['Video_title'])
+    video_select = st.sidebar.selectbox('Select Video', videos)
+
+    agg_filtered = df_agg[df_agg['Video_title'] == video_select]
+    agg_sub_filtered = df_agg_sub[df_agg_sub['Video_title'] == video_select]
+    agg_sub_filtered['Country'] = agg_sub_filtered['Country']
